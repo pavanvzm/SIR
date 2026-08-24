@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Activity, AlertTriangle, CheckCircle, Clock, TrendingUp } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Activity, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface StatusData {
   activeIncidents: number;
@@ -33,7 +33,7 @@ const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e'];
 export default function Dashboard() {
   const [statusData, setStatusData] = useState<StatusData | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function Dashboard() {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {pieData.map((entry, index) => (
+                {pieData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>

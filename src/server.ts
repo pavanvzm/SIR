@@ -9,13 +9,12 @@ import dotenv from 'dotenv';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 import { db, initializeDatabase, closeDatabase, Incident, Alert, AuditLog } from './db/schema';
 import { createMcpServer } from './mcp/server';
 import { getSystemMetrics } from './utils/osMetrics';
-import { logInfo, logError, logWarn } from './utils/logger';
-import { hash, isValidApiKey } from './utils/encryption';
+import { logInfo, logError } from './utils/logger';
+import { isValidApiKey } from './utils/encryption';
 import { v4 as uuidv4 } from 'uuid';
 
 // Load environment variables
@@ -96,17 +95,19 @@ class SirMcpApplication {
     });
 
     // API Key authentication middleware
-    const authenticateApiKey = (req: Request, res: Response, next: NextFunction) => {
+    const authenticateApiKey = (req: Request, res: Response, next: NextFunction): void => {
       const apiKey = req.headers['x-api-key'] as string | undefined;
       
       if (!apiKey || !isValidApiKey(apiKey)) {
-        return res.status(401).json({ error: 'Invalid or missing API key' });
+        res.status(401).json({ error: 'Invalid or missing API key' });
+        return;
       }
 
       // Check against configured keys
       const validKeys = [API_KEY, ADMIN_API_KEY, OPERATOR_API_KEY, VIEWER_API_KEY];
       if (!validKeys.includes(apiKey)) {
-        return res.status(401).json({ error: 'Invalid API key' });
+        res.status(401).json({ error: 'Invalid API key' });
+        return;
       }
 
       next();
@@ -178,14 +179,15 @@ class SirMcpApplication {
     });
 
     // GET /api/incidents/:id - Get incident by ID
-    this.app.get('/api/incidents/:id', authenticateApiKey, async (req: Request, res: Response) => {
+    this.app.get('/api/incidents/:id', authenticateApiKey, async (req: Request, res: Response): Promise<void> => {
       try {
         const incident = await db<Incident>('incidents')
           .where('id', req.params.id)
           .first();
 
         if (!incident) {
-          return res.status(404).json({ error: 'Incident not found' });
+          res.status(404).json({ error: 'Incident not found' });
+          return;
         }
 
         res.json(incident);
@@ -196,16 +198,18 @@ class SirMcpApplication {
     });
 
     // POST /api/incidents - Create new incident
-    this.app.post('/api/incidents', authenticateApiKey, async (req: Request, res: Response) => {
+    this.app.post('/api/incidents', authenticateApiKey, async (req: Request, res: Response): Promise<void> => {
       try {
         const { title, description, severity, source } = req.body;
         
         if (!title || !severity) {
-          return res.status(400).json({ error: 'Title and severity are required' });
+          res.status(400).json({ error: 'Title and severity are required' });
+          return;
         }
 
+        const incidentId = uuidv4();
         const incident: Partial<Incident> = {
-          id: uuidv4(),
+          id: incidentId,
           title,
           description: description || null,
           severity: severity as 'P1' | 'P2' | 'P3' | 'P4',
@@ -217,7 +221,7 @@ class SirMcpApplication {
         await db<Incident>('incidents').insert(incident);
         
         // Log audit trail
-        await this.logAudit('CREATE', 'incident', incident.id, req);
+        await this.logAudit('CREATE', 'incident', incidentId, req);
 
         // Broadcast update via WebSocket
         this.broadcastUpdate({ type: 'incident_created', data: incident });
@@ -243,11 +247,12 @@ class SirMcpApplication {
         }
         updates.updated_at = new Date().toISOString();
 
+        const incidentId = req.params.id || null;
         await db<Incident>('incidents')
           .where('id', req.params.id)
           .update(updates);
 
-        await this.logAudit('UPDATE', 'incident', req.params.id, req);
+        await this.logAudit('UPDATE', 'incident', incidentId, req);
         this.broadcastUpdate({ type: 'incident_updated', id: req.params.id, updates });
 
         res.json({ message: 'Incident updated' });
@@ -276,18 +281,20 @@ class SirMcpApplication {
     });
 
     // POST /api/alerts/:id/acknowledge - Acknowledge alert
-    this.app.post('/api/alerts/:id/acknowledge', authenticateApiKey, async (req: Request, res: Response) => {
+    this.app.post('/api/alerts/:id/acknowledge', authenticateApiKey, async (req: Request, res: Response): Promise<void> => {
       try {
         const { userId } = req.body;
         
         if (!userId) {
-          return res.status(400).json({ error: 'userId is required' });
+          res.status(400).json({ error: 'userId is required' });
+          return;
         }
 
         const alert = await db<Alert>('alerts').where('id', req.params.id).first();
         
         if (!alert) {
-          return res.status(404).json({ error: 'Alert not found' });
+          res.status(404).json({ error: 'Alert not found' });
+          return;
         }
 
         await db<Alert>('alerts')
@@ -298,7 +305,8 @@ class SirMcpApplication {
             acknowledged_at: new Date().toISOString(),
           });
 
-        await this.logAudit('ACKNOWLEDGE', 'alert', req.params.id, req);
+        const alertId = req.params.id || null;
+        await this.logAudit('ACKNOWLEDGE', 'alert', alertId, req);
         this.broadcastUpdate({ type: 'alert_acknowledged', id: req.params.id, userId });
 
         res.json({ message: 'Alert acknowledged' });
@@ -387,8 +395,8 @@ class SirMcpApplication {
         id: uuidv4(),
         action,
         resource_type: resourceType,
-        resource_id: resourceId,
-        ip_address: req?.ip || null,
+        resource_id: resourceId ?? null,
+        ip_address: req?.ip ?? null,
         created_at: new Date().toISOString(),
       };
 

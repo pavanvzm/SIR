@@ -85,8 +85,8 @@ export async function generatePdfReport(
         doc.moveDown();
         
         incidents.forEach((incident, index) => {
-          doc.fontSize(14).text(`${index + 1}. ${incident.title}`, { bold: true });
-          doc.fontSize(11);
+          doc.font('Helvetica-Bold').fontSize(14).text(`${index + 1}. ${incident.title}`);
+          doc.font('Helvetica').fontSize(11);
           doc.text(`ID: ${incident.id}`);
           doc.text(`Severity: ${incident.severity}`);
           doc.text(`Status: ${incident.status}`);
@@ -107,8 +107,8 @@ export async function generatePdfReport(
         doc.moveDown();
         
         alerts.forEach((alert, index) => {
-          doc.fontSize(12).text(`${index + 1}. ${alert.message}`, { bold: true });
-          doc.fontSize(11);
+          doc.font('Helvetica-Bold').fontSize(12).text(`${index + 1}. ${alert.message}`);
+          doc.font('Helvetica').fontSize(11);
           doc.text(`Priority: ${alert.priority}`);
           doc.text(`Created: ${new Date(alert.created_at).toISOString()}`);
           doc.text(`Acknowledged: ${alert.acknowledged ? 'Yes' : 'No'}`);
