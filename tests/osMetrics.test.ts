@@ -1,4 +1,4 @@
-import { getSystemMetrics, formatBytes } from './osMetrics';
+import { getSystemMetrics, formatBytes } from '../src/utils/osMetrics';
 
 describe('OS Metrics Utility', () => {
   describe('getSystemMetrics', () => {

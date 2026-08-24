@@ -65,8 +65,9 @@ function registerResources(server: McpServer): void {
   server.resource(
     'incident-details',
     'sir://incidents/{id}',
-    async (uri, { id }) => {
+    async (uri, extra) => {
       try {
+        const id = (extra as any).id || uri.pathname.split('/').pop() || '';
         const incident = await db<Incident>('incidents')
           .where('id', id)
           .first();
@@ -89,19 +90,20 @@ function registerResources(server: McpServer): void {
           }],
         };
       } catch (error) {
-        logError(`Failed to get incident ${id}`, error as Error);
+        logError('Failed to get incident details', error as Error);
         throw error;
       }
     }
   );
 
-  // Resource: sir://history?range={days}
+  // Resource: sir://history
   server.resource(
     'history',
     'sir://history',
-    async (uri, { range }) => {
+    async (uri, extra) => {
       try {
-        const days = parseInt(range || '7', 10);
+        const rangeStr = (extra as any).range || new URL(uri.href).searchParams.get('range') || '7';
+        const days = parseInt(rangeStr, 10);
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
@@ -204,7 +206,7 @@ function registerTools(server: McpServer): void {
 
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
               status: 'success',
               timestamp: new Date().toISOString(),
@@ -226,7 +228,7 @@ function registerTools(server: McpServer): void {
         logError('Failed to check SIR status', error as Error);
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({ status: 'error', message: (error as Error).message }),
           }],
           isError: true,
@@ -236,13 +238,13 @@ function registerTools(server: McpServer): void {
   );
 
   // Tool: get_incident_details
-  server.tool(
+  (server.tool as any)(
     'get_incident_details',
     'Fetches full incident timeline and details by ID',
     {
-      incidentId: z.string().describe('The unique identifier of the incident'),
+      incidentId: z.string(),
     },
-    async ({ incidentId }) => {
+    async ({ incidentId }: any) => {
       try {
         const incident = await db<Incident>('incidents')
           .where('id', incidentId)
@@ -251,7 +253,7 @@ function registerTools(server: McpServer): void {
         if (!incident) {
           return {
             content: [{
-              type: 'text',
+              type: 'text' as const,
               text: JSON.stringify({ 
                 status: 'error', 
                 message: `Incident ${incidentId} not found` 
@@ -263,7 +265,7 @@ function registerTools(server: McpServer): void {
 
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
               status: 'success',
               incident,
@@ -274,7 +276,7 @@ function registerTools(server: McpServer): void {
         logError(`Failed to get incident details for ${incidentId}`, error as Error);
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({ status: 'error', message: (error as Error).message }),
           }],
           isError: true,
@@ -284,16 +286,16 @@ function registerTools(server: McpServer): void {
   );
 
   // Tool: search_incidents
-  server.tool(
+  (server.tool as any)(
     'search_incidents',
     'Searches and filters incidents by severity, status, date range, or keyword',
     {
-      severity: z.enum(['P1', 'P2', 'P3', 'P4']).optional().describe('Filter by severity level'),
-      status: z.enum(['active', 'resolved', 'escalated', 'pending']).optional().describe('Filter by status'),
-      keyword: z.string().optional().describe('Search keyword in title or description'),
-      days: z.number().optional().describe('Number of days to look back'),
+      severity: z.enum(['P1', 'P2', 'P3', 'P4']).optional(),
+      status: z.enum(['active', 'resolved', 'escalated', 'pending']).optional(),
+      keyword: z.string().optional(),
+      days: z.number().optional(),
     },
-    async ({ severity, status, keyword, days }) => {
+    async ({ severity, status, keyword, days }: any) => {
       try {
         let query = db<Incident>('incidents').select('*');
 
@@ -322,7 +324,7 @@ function registerTools(server: McpServer): void {
 
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
               status: 'success',
               count: incidents.length,
@@ -334,7 +336,7 @@ function registerTools(server: McpServer): void {
         logError('Failed to search incidents', error as Error);
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({ status: 'error', message: (error as Error).message }),
           }],
           isError: true,
@@ -344,15 +346,15 @@ function registerTools(server: McpServer): void {
   );
 
   // Tool: create_incident_report
-  server.tool(
+  (server.tool as any)(
     'create_incident_report',
     'Generates a PDF or CSV report of incidents',
     {
-      format: z.enum(['pdf', 'csv']).default('pdf').describe('Report format'),
-      includeAlerts: z.boolean().default(true).describe('Include alerts in report'),
-      days: z.number().default(30).describe('Number of days of data to include'),
+      format: z.enum(['pdf', 'csv']).default('pdf'),
+      includeAlerts: z.boolean().default(true),
+      days: z.number().default(30),
     },
-    async ({ format, includeAlerts, days }) => {
+    async ({ format, includeAlerts, days }: any) => {
       try {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
@@ -372,7 +374,7 @@ function registerTools(server: McpServer): void {
 
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
               status: 'success',
               message: `Report generated successfully`,
@@ -387,7 +389,7 @@ function registerTools(server: McpServer): void {
         logError('Failed to create incident report', error as Error);
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({ status: 'error', message: (error as Error).message }),
           }],
           isError: true,
@@ -397,14 +399,14 @@ function registerTools(server: McpServer): void {
   );
 
   // Tool: acknowledge_alert
-  server.tool(
+  (server.tool as any)(
     'acknowledge_alert',
     'Acknowledges an alert with user information and timestamp',
     {
-      alertId: z.string().describe('The unique identifier of the alert'),
-      userId: z.string().describe('The user acknowledging the alert'),
+      alertId: z.string(),
+      userId: z.string(),
     },
-    async ({ alertId, userId }) => {
+    async ({ alertId, userId }: any) => {
       try {
         const alert = await db<Alert>('alerts')
           .where('id', alertId)
@@ -413,7 +415,7 @@ function registerTools(server: McpServer): void {
         if (!alert) {
           return {
             content: [{
-              type: 'text',
+              type: 'text' as const,
               text: JSON.stringify({ 
                 status: 'error', 
                 message: `Alert ${alertId} not found` 
@@ -426,7 +428,7 @@ function registerTools(server: McpServer): void {
         if (alert.acknowledged) {
           return {
             content: [{
-              type: 'text',
+              type: 'text' as const,
               text: JSON.stringify({ 
                 status: 'info', 
                 message: `Alert ${alertId} is already acknowledged` 
@@ -447,7 +449,7 @@ function registerTools(server: McpServer): void {
 
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
               status: 'success',
               message: `Alert ${alertId} acknowledged successfully`,
@@ -461,7 +463,7 @@ function registerTools(server: McpServer): void {
         logError(`Failed to acknowledge alert ${alertId}`, error as Error);
         return {
           content: [{
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({ status: 'error', message: (error as Error).message }),
           }],
           isError: true,

@@ -1,7 +1,6 @@
 import os from 'os';
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
 import fs from 'fs';
-import path from 'path';
 
 /**
  * Interface for system metrics
@@ -132,7 +131,7 @@ class UnixLogProvider implements ILogProvider {
         
         // Try to extract timestamp from syslog format
         const timestampMatch = line.match(/^(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})/);
-        if (!timestampMatch) return true; // Include if can't parse
+        if (!timestampMatch || !timestampMatch[1]) return true; // Include if can't parse
         
         const logTime = new Date(timestampMatch[1]);
         return logTime.getTime() >= sinceTime;
@@ -206,10 +205,13 @@ function getDiskUsage(): { total: number; free: number; used: number; usagePerce
       // Linux/macOS: Use df command or statfs
       const output = execSync('df -k / | tail -1', { encoding: 'utf8' });
       const parts = output.trim().split(/\s+/);
+      if (parts.length < 5 || !parts[1] || !parts[2] || !parts[3] || !parts[4]) {
+        return { total: 0, free: 0, used: 0, usagePercent: 0 };
+      }
       // df output: Filesystem 1K-blocks Used Available Use% Mounted
-      const total = parseInt(parts[1]) * 1024;
-      const used = parseInt(parts[2]) * 1024;
-      const free = parseInt(parts[3]) * 1024;
+      const total = parseInt(parts[1], 10) * 1024;
+      const used = parseInt(parts[2], 10) * 1024;
+      const free = parseInt(parts[3], 10) * 1024;
       return {
         total,
         free,
